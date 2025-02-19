@@ -1,0 +1,85 @@
+---
+- name: Clone multiple VMs from an existing VM in VMware vSphere
+  hosts: localhost
+  gather_facts: no
+  vars:
+    vsphere_user: "watson@vsphere.local"
+    vsphere_password: "$E:uu2j9YB@t6h|&4FWH"
+    vsphere_server: "vcenter.gcloud.gsis.gr"
+
+    datacenter: "gcloud.gsis.gr"
+    datastore: "ADM02-DATA"
+    resource_pool: "/gcloud.gsis.gr/host/G-Cloud Next Gen//Resources"
+    network: "VLAN 3301 - 10.101.32.0%2f28"
+    source_vm: "NG-RH"
+    vm_folder: "/Efka"
+    os_type: "linux"
+
+    vm_cpu: 8
+    vm_memory: 64
+    vm_disk_size: 50
+
+    vm_domain: "gcloud.gsis.gr"
+    vm_dns_list: ["10.9.209.69", "10.9.209.70"]
+
+    vm_list:
+      - name: "PRODWEBINTVM1"
+        ip: "10.101.32.34"
+        netmask: "255.255.255.240"
+        gateway: "10.101.32.33"
+      - name: "PRODWEBINTVM2"
+        ip: "10.101.32.35"
+        netmask: "255.255.255.240"
+        gateway: "10.101.32.33"
+      - name: "PRODWEBINTVM3"
+        ip: "10.101.32.36"
+        netmask: "255.255.255.240"
+        gateway: "10.101.32.33"
+
+  tasks:
+    - name: Clone VMs from existing VM
+      community.vmware.vmware_guest:
+        hostname: "{{ vsphere_server }}"
+        username: "{{ vsphere_user }}"
+        password: "{{ vsphere_password }}"
+        validate_certs: no
+
+        datacenter: "{{ datacenter }}"
+        folder: "{{ vm_folder }}"
+        resource_pool: "{{ resource_pool }}"
+        datastore: "{{ datastore }}"
+
+        name: "{{ item.name }}"
+        state: poweredon
+        template: false  # This tells Ansible we are not using a template
+        linked_clone: false  # Set to true if you want to save disk space (uses snapshots)
+        existing_vm: "{{ source_vm }}"
+
+        hardware:
+          memory_mb: "{{ vm_memory }}"
+          num_cpus: "{{ vm_cpu }}"
+          scsi: paravirtual
+
+        networks:
+          - name: "{{ network }}"
+            ip: "{{ item.ip }}"
+            netmask: "{{ item.netmask }}"
+            gateway: "{{ item.gateway }}"
+            dns_servers: "{{ vm_dns_list }}"
+
+        disk:
+          - size_gb: "{{ vm_disk_size }}"
+            type: thin
+            datastore: "{{ datastore }}"
+
+        customization:
+          domain: "{{ vm_domain }}"
+          hostname: "{{ item.name }}"
+          dns_servers: "{{ vm_dns_list }}"
+
+      loop: "{{ vm_list }}"
+      register: clone_results
+
+    - name: Display VM cloning results
+      debug:
+        var: clone_results
